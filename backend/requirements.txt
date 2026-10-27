@@ -9,3 +9,5 @@ scikit-learn>=1.4,<2
 
 pytest>=8,<10
 httpx>=0.27,<1
+torchvision>=0.17,<1
+medmnist>=3.0,<4

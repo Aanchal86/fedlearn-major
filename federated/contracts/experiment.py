@@ -11,7 +11,7 @@ class ExperimentConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    dataset: Literal["fashion_mnist"] = "fashion_mnist"
+    dataset: Literal["fashion_mnist", "pneumonia_mnist"] = "fashion_mnist"
     model_name: Literal["small_cnn"] = "small_cnn"
 
     num_clients: int = Field(default=5, ge=2, le=100)
