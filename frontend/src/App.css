@@ -1,0 +1,22 @@
+
+.app {
+  max-width: 900px;
+  margin: 100px auto;
+  padding: 30px;
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+.app h1 {
+  font-size: 48px;
+  color: #646cff;
+}
+
+.app h2 {
+  font-size: 24px;
+}
+
+.app p {
+  font-size: 17px;
+  line-height: 1.6;
+}
