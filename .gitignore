@@ -1,0 +1,46 @@
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Node.js
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Databases
+*.db
+*.sqlite3
+
+# ML datasets and checkpoints
+data/
+datasets/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
