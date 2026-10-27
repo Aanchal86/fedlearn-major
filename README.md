@@ -69,30 +69,6 @@ API Docs: http://localhost:8000/docs
 - React experiment monitoring
 - Reproducible model evaluation
 
-## Project Status
-
-Day 1 - Repository and environment setup.
-```
-
-### 4. Verify the repository
-
-From the root directory, run:
-
-```powershell
-git status
-```
-
-Make sure `.venv/`, `node_modules/`, and dataset files are not being tracked.
-
-Then check Docker configuration:
-
-```powershell
-docker compose config --quiet
-```
-
-If it returns without errors, your Compose configuration is valid.
-
-
 ## Supported Datasets
 
 FedLearn currently supports:
