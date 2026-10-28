@@ -1,21 +1,80 @@
 
-import "./App.css";
+// import { useState } from "react";
+// import { datasetApi, experimentApi } from "./services/api";
 
-function App() {
-  return (
-    <div className="app">
-      <h1>FedLearn</h1>
-      <h2>Privacy-Preserving Federated Learning Platform</h2>
+// function App() {
+//   const [result, setResult] = useState(null);
+//   const [loading, setLoading] = useState(false);
+//   const [error, setError] = useState("");
 
-      <p>
-        A research-oriented platform for distributed
-        machine learning using PyTorch and FastAPI.
-      </p>
+//   async function runRequest(request) {
+//     setLoading(true);
+//     setError("");
+//     setResult(null);
 
-      <p>Frontend Status: Running</p>
-      <p>Project Version: 0.1.0</p>
-    </div>
-  );
+//     try {
+//       const data = await request();
+//       setResult(data);
+//     } catch (err) {
+//       setError(err.message);
+//     } finally {
+//       setLoading(false);
+//     }
+//   }
+
+//   return (
+//     <main style={{ padding: "40px", fontFamily: "Arial" }}>
+//       <h1>FedLearn API Connection Test</h1>
+
+//       <p>Test communication between React and FastAPI.</p>
+
+//       <div style={{ display: "flex", gap: "12px" }}>
+//         <button
+//           onClick={() => runRequest(datasetApi.getAll)}
+//           disabled={loading}
+//         >
+//           Load Datasets
+//         </button>
+
+//         <button
+//           onClick={() => runRequest(experimentApi.getAll)}
+//           disabled={loading}
+//         >
+//           Load Experiments
+//         </button>
+//       </div>
+
+//       {loading && <p>Loading...</p>}
+
+//       {error && (
+//         <p style={{ color: "red" }}>
+//           Error: {error}
+//         </p>
+//       )}
+
+//       {result && (
+//         <pre
+//           style={{
+//             marginTop: "20px",
+//             padding: "16px",
+//             background: "#f3f4f6",
+//             color: "#111827",
+//             borderRadius: "8px",
+//             overflowX: "auto",
+//           }}
+//         >
+//           {JSON.stringify(result, null, 2)}
+//         </pre>
+//       )}
+//     </main>
+//   );
+// }
+
+// export default App;
+
+
+import ExperimentDashboard from "./components/ExperimentDashboard";
+
+export default function App() {
+  return <ExperimentDashboard />;
 }
-
-export default App;
