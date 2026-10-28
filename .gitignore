@@ -45,3 +45,7 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Generated experiment outputs
+/results/baselines/*.json
+/results/baselines/*.csv
