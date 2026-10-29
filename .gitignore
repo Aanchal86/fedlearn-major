@@ -31,7 +31,7 @@ Thumbs.db
 *.sqlite3
 
 # ML datasets and checkpoints
-data/
+/data/
 datasets/
 checkpoints/
 *.pt
