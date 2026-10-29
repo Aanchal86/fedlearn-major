@@ -17,23 +17,21 @@ from federated.training.run_baseline import set_seed
 
 
 class FederatedCoordinator:
-    """
-    Coordinates multiple federated learning rounds
-    using IID partitioning and FedAvg aggregation.
-    """
-
     def __init__(self, config: ExperimentConfig):
         if config.partition_type != "iid":
-            raise ValueError("Only IID partitioning is supported")
+            raise ValueError(
+                "Only IID partitioning is currently supported"
+            )
 
         if config.aggregation_method != "fedavg":
-            raise ValueError("Only FedAvg is supported")
+            raise ValueError(
+                "Only FedAvg aggregation is currently supported"
+            )
 
         if config.device == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("CUDA is not available")
 
         self.config = config
-
         set_seed(config.random_seed)
 
         splits = get_dataset_splits(
@@ -57,24 +55,25 @@ class FederatedCoordinator:
             num_workers=0,
         )
 
-        self.global_model = create_model(config.dataset)
-        self.global_model = self.global_model.to(config.device)
+        self.global_model = create_model(
+            config.dataset
+        ).to(config.device)
 
         self.history = []
+        self.client_history = {}
 
     def run(self) -> list[RoundResult]:
-        """
-        Execute all federated rounds and evaluate
-        the updated global model after each round.
-        """
-
         self.history = []
+        self.client_history = {}
 
-        for round_number in range(1, self.config.num_rounds + 1):
+        for round_number in range(
+            1,
+            self.config.num_rounds + 1,
+        ):
             print(
                 f"\n{'=' * 60}\n"
-                f"Federated Round {round_number}/"
-                f"{self.config.num_rounds}\n"
+                f"Federated Round "
+                f"{round_number}/{self.config.num_rounds}\n"
                 f"{'=' * 60}"
             )
 
@@ -101,22 +100,40 @@ class FederatedCoordinator:
 
             aggregated_state = federated_averaging(updates)
 
-            self.global_model.load_state_dict(aggregated_state)
+            self.global_model.load_state_dict(
+                aggregated_state
+            )
 
             validation = evaluate_model(
-                model=self.global_model,
-                data_loader=self.val_loader,
+                self.global_model,
+                self.val_loader,
                 device=self.config.device,
             )
 
             total_samples = sum(
-                update.num_samples for update in updates
+                update.num_samples
+                for update in updates
             )
 
             client_weights = {
-                update.client_id: update.num_samples / total_samples
+                update.client_id: (
+                    update.num_samples / total_samples
+                )
                 for update in updates
             }
+
+            self.client_history[round_number] = [
+                {
+                    "client_id": update.client_id,
+                    "num_samples": update.num_samples,
+                    "aggregation_weight": client_weights[
+                        update.client_id
+                    ],
+                    "training_loss": update.training_loss,
+                    "training_accuracy": update.training_accuracy,
+                }
+                for update in updates
+            ]
 
             result = RoundResult(
                 round_number=round_number,
@@ -124,11 +141,14 @@ class FederatedCoordinator:
                 global_loss=validation["loss"],
                 global_macro_f1=validation["macro_f1"],
                 participating_clients=[
-                    update.client_id for update in updates
+                    update.client_id
+                    for update in updates
                 ],
                 total_samples=total_samples,
                 aggregation_method="fedavg",
-                round_time_seconds=time.perf_counter() - round_start,
+                round_time_seconds=(
+                    time.perf_counter() - round_start
+                ),
                 client_weights=client_weights,
             )
 
