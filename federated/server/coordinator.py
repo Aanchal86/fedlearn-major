@@ -4,6 +4,7 @@ import time
 import torch
 from torch.utils.data import DataLoader
 
+from federated.aggregation.adaptive import adaptive_averaging
 from federated.aggregation.fedavg import federated_averaging
 from federated.client.trainer import ClientTrainer
 from federated.contracts.experiment import ExperimentConfig
@@ -19,11 +20,6 @@ from federated.training.run_baseline import set_seed
 
 class FederatedCoordinator:
     def __init__(self, config: ExperimentConfig):
-
-        if config.aggregation_method != "fedavg":
-            raise ValueError(
-                "Only FedAvg aggregation is currently supported"
-            )
 
         if config.device == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("CUDA is not available")
@@ -106,11 +102,32 @@ class FederatedCoordinator:
 
                 updates.append(update)
 
-            aggregated_state = federated_averaging(updates)
+            
+            if self.config.aggregation_method == "fedavg":
+                aggregated_state = federated_averaging(updates)
 
-            self.global_model.load_state_dict(
-                aggregated_state
+                total_samples = sum(
+                    update.num_samples for update in updates
+                )
+
+                client_weights = {
+                    update.client_id: update.num_samples / total_samples
+                    for update in updates
+                }
+
+            elif self.config.aggregation_method == "adaptive":
+                aggregated_state, client_weights = adaptive_averaging(
+                    updates
+                )
+
+            else:
+                raise ValueError(
+                    f"Unsupported aggregation method: "
+                    f"{self.config.aggregation_method}"
             )
+
+            self.global_model.load_state_dict(aggregated_state)
+
 
             validation = evaluate_model(
                 self.global_model,
@@ -122,13 +139,6 @@ class FederatedCoordinator:
                 update.num_samples
                 for update in updates
             )
-
-            client_weights = {
-                update.client_id: (
-                    update.num_samples / total_samples
-                )
-                for update in updates
-            }
 
             self.client_history[round_number] = [
                 {
@@ -153,7 +163,7 @@ class FederatedCoordinator:
                     for update in updates
                 ],
                 total_samples=total_samples,
-                aggregation_method="fedavg",
+                aggregation_method=self.config.aggregation_method,
                 round_time_seconds=(
                     time.perf_counter() - round_start
                 ),
