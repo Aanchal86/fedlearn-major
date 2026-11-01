@@ -11,6 +11,7 @@ from federated.contracts.round_result import RoundResult
 from federated.data.dataloaders import StandardizedDataset
 from federated.data.splits import get_dataset_splits
 from federated.models.cnn import create_model
+from federated.partitioning.dirichlet import partition_dirichlet
 from federated.partitioning.iid import partition_iid
 from federated.training.evaluator import evaluate_model
 from federated.training.run_baseline import set_seed
@@ -18,10 +19,6 @@ from federated.training.run_baseline import set_seed
 
 class FederatedCoordinator:
     def __init__(self, config: ExperimentConfig):
-        if config.partition_type != "iid":
-            raise ValueError(
-                "Only IID partitioning is currently supported"
-            )
 
         if config.aggregation_method != "fedavg":
             raise ValueError(
@@ -42,11 +39,22 @@ class FederatedCoordinator:
         train_dataset = StandardizedDataset(splits.train)
         val_dataset = StandardizedDataset(splits.val)
 
-        self.partitions = partition_iid(
-            train_dataset,
-            num_clients=config.num_clients,
-            seed=config.random_seed,
+        
+        if config.partition_type == "iid":
+            self.partitions = partition_iid(
+                train_dataset,
+                num_clients=config.num_clients,
+                seed=config.random_seed,
+            )
+
+        elif config.partition_type == "dirichlet":
+            self.partitions = partition_dirichlet(
+                train_dataset,
+                num_clients=config.num_clients,
+                alpha=config.dirichlet_alpha,
+                seed=config.random_seed,
         )
+
 
         self.val_loader = DataLoader(
             val_dataset,

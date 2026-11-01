@@ -124,11 +124,29 @@ def test_invalid_aggregation_rejected(small_dataset):
         FederatedCoordinator(config)
 
 
-def test_invalid_partition_rejected(small_dataset):
-    config = make_config(partition_type="dirichlet")
 
-    with pytest.raises(ValueError, match="IID"):
-        FederatedCoordinator(config)
+def test_dirichlet_partition_supported(small_dataset):
+    config = make_config(
+        partition_type="dirichlet",
+        dirichlet_alpha=0.5,
+    )
+
+    coordinator = FederatedCoordinator(config)
+
+    assert len(coordinator.partitions) == config.num_clients
+
+    total_samples = sum(
+        len(dataset)
+        for dataset in coordinator.partitions.values()
+    )
+
+    assert total_samples == len(coordinator.partitions[0].dataset)
+
+    assert all(
+        len(dataset) > 0
+        for dataset in coordinator.partitions.values()
+    )
+
 
 
 def test_deterministic_results(small_dataset):
