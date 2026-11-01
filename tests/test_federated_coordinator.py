@@ -117,11 +117,18 @@ def test_client_participation_and_weights(small_dataset):
         )
 
 
-def test_invalid_aggregation_rejected(small_dataset):
-    config = make_config(aggregation_method="adaptive")
 
-    with pytest.raises(ValueError, match="FedAvg"):
-        FederatedCoordinator(config)
+def test_adaptive_aggregation_supported(small_dataset):
+    config = make_config(
+        aggregation_method="adaptive"
+    )
+
+    coordinator = FederatedCoordinator(config)
+
+    assert coordinator.config.aggregation_method == "adaptive"
+    assert len(coordinator.partitions) == config.num_clients
+    assert coordinator.global_model is not None
+
 
 
 
