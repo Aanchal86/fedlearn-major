@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 
 from federated.aggregation.adaptive import adaptive_averaging
 from federated.aggregation.fedavg import federated_averaging
+from federated.partitioning.label_noise import NoisyLabelDataset
 from federated.client.trainer import ClientTrainer
 from federated.contracts.experiment import ExperimentConfig
 from federated.contracts.round_result import RoundResult
@@ -50,6 +51,48 @@ class FederatedCoordinator:
                 alpha=config.dirichlet_alpha,
                 seed=config.random_seed,
         )
+
+        
+        # Apply label noise only to the selected training client.
+        self.noise_metadata = {
+            "enabled": False,
+            "client_id": None,
+            "noise_rate": 0.0,
+            "num_corrupted": 0,
+        }
+
+        if config.noise_rate > 0:
+            # ExperimentConfig uses 1-based client identifiers.
+            client_index = config.noisy_client_id - 1
+
+            num_classes = (
+                10 if config.dataset == "fashion_mnist" else 2
+            )
+
+            original_partition = self.partitions[client_index]
+
+            noisy_partition = NoisyLabelDataset(
+                dataset=original_partition,
+                noise_rate=config.noise_rate,
+                num_classes=num_classes,
+                seed=config.random_seed + 10000 + client_index,
+            )
+
+            self.partitions[client_index] = noisy_partition
+
+            self.noise_metadata = {
+                "enabled": True,
+                "client_id": f"client_{config.noisy_client_id}",
+                "noise_rate": config.noise_rate,
+                "num_corrupted": noisy_partition.num_corrupted,
+            }
+
+            print(
+                f"Applied {config.noise_rate:.0%} label noise to "
+                f"Client {config.noisy_client_id}: "
+                f"{noisy_partition.num_corrupted} labels changed"
+            )
+
 
 
         self.val_loader = DataLoader(

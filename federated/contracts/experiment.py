@@ -1,7 +1,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator  
 
 
 class ExperimentConfig(BaseModel):
@@ -27,5 +27,16 @@ class ExperimentConfig(BaseModel):
     partition_type: Literal["iid", "dirichlet"] = "iid"
     dirichlet_alpha: float = Field(default=0.5, gt=0)
 
+    noise_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    noisy_client_id: int = Field(default=3, ge=1)
+
     random_seed: int = Field(default=42, ge=0)
     device: Literal["cpu", "cuda"] = "cpu"
+
+    @model_validator(mode="after")
+    def validate_noisy_client(self):
+        if self.noise_rate > 0 and self.noisy_client_id > self.num_clients:
+            raise ValueError(
+                "noisy_client_id cannot exceed num_clients"
+            )
+        return self
