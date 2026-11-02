@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.datasets import router as datasets_router
 from backend.app.api.experiments import router as experiments_router
+from backend.app.api.networking import router as networking_router
+from backend.app.api.networking_dev import router as networking_dev_router
+
 from backend.app.db.database import Base, engine
 from backend.app.db import models
 
@@ -36,6 +39,8 @@ app.add_middleware(
 
 app.include_router(datasets_router)
 app.include_router(experiments_router)
+app.include_router(networking_router)
+app.include_router(networking_dev_router)
 
 
 @app.get("/")
