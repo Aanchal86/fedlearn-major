@@ -3,6 +3,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
+import hashlib
 
 import torch
 
@@ -23,16 +24,32 @@ SCENARIOS = [
 
 
 def build_experiment_id(config):
+    """
+    Generate a deterministic experiment identifier
+    based on the complete experiment configuration.
+    """
+
+    config_json = config.model_dump_json(
+        exclude_none=False
+    )
+
+    config_hash = hashlib.sha256(
+        config_json.encode("utf-8")
+    ).hexdigest()[:12]
+
     partition = config.partition_type
 
     if partition == "dirichlet":
         partition += f"_alpha_{config.dirichlet_alpha:g}"
 
     return (
-        f"{config.dataset}_{partition}_"
+        f"{config.dataset}_"
+        f"{partition}_"
         f"{config.aggregation_method}_"
-        f"seed_{config.random_seed}"
+        f"seed_{config.random_seed}_"
+        f"{config_hash}"
     )
+
 
 
 def run_single_experiment(config, output_dir=OUTPUT_DIR):
