@@ -1,4 +1,3 @@
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -59,18 +58,24 @@ def make_update():
     }
 
 
-def test_get_training_assignment(setup_network):
-    client, exchange = setup_network
-
-    client.post(
+def register_and_publish(client, exchange):
+    response = client.post(
         "/api/network/clients/register",
         json={"client_id": "client_1"},
     )
+
+    assert response.status_code == 201
 
     exchange.publish_assignment(
         "client_1",
         make_assignment(),
     )
+
+
+def test_get_training_assignment(setup_network):
+    client, exchange = setup_network
+
+    register_and_publish(client, exchange)
 
     response = client.get(
         "/api/network/clients/client_1/assignments/1/1"
@@ -83,15 +88,7 @@ def test_get_training_assignment(setup_network):
 def test_submit_client_update(setup_network):
     client, exchange = setup_network
 
-    client.post(
-        "/api/network/clients/register",
-        json={"client_id": "client_1"},
-    )
-
-    exchange.publish_assignment(
-        "client_1",
-        make_assignment(),
-    )
+    register_and_publish(client, exchange)
 
     response = client.post(
         "/api/network/clients/client_1/updates",
@@ -107,18 +104,10 @@ def test_submit_client_update(setup_network):
     assert stored.num_samples == 100
 
 
-def test_duplicate_update_rejected(setup_network):
+def test_duplicate_update_accepted(setup_network):
     client, exchange = setup_network
 
-    client.post(
-        "/api/network/clients/register",
-        json={"client_id": "client_1"},
-    )
-
-    exchange.publish_assignment(
-        "client_1",
-        make_assignment(),
-    )
+    register_and_publish(client, exchange)
 
     first = client.post(
         "/api/network/clients/client_1/updates",
@@ -131,7 +120,41 @@ def test_duplicate_update_rejected(setup_network):
     )
 
     assert first.status_code == 200
+    assert first.json()["status"] == "accepted"
+
+    assert second.status_code == 200
+    assert second.json()["status"] == "already_accepted"
+
+    assert len(exchange._updates) == 1
+
+
+def test_conflicting_update_rejected(setup_network):
+    client, exchange = setup_network
+
+    register_and_publish(client, exchange)
+
+    original = make_update()
+
+    first = client.post(
+        "/api/network/clients/client_1/updates",
+        json=original,
+    )
+
+    conflicting = make_update()
+    conflicting["training_loss"] = 0.8
+
+    second = client.post(
+        "/api/network/clients/client_1/updates",
+        json=conflicting,
+    )
+
+    assert first.status_code == 200
     assert second.status_code == 409
+
+    stored = exchange.get_update("client_1", 1, 1)
+
+    assert stored.training_loss == 0.3
+    assert len(exchange._updates) == 1
 
 
 def test_unregistered_client_rejected(setup_network):

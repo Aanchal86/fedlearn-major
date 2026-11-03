@@ -1,30 +1,19 @@
-
 from unittest.mock import Mock
 
 import pytest
-import torch
-from torch.utils.data import TensorDataset
 
-from federated.networking.client_runner import (
-    FederatedClientRunner,
-)
-from federated.networking.protocol import (
-    ClientUpdateMessage,
-    TrainingAssignment,
-    encode_model_payload,
-)
+from federated.networking.client_runner import FederatedClientRunner
+from federated.networking.protocol import TrainingAssignment
 
 
 @pytest.fixture
 def runner():
-    images = torch.randn(8, 1, 28, 28)
-    labels = torch.randint(0, 2, (8,))
-    dataset = TensorDataset(images, labels)
-
-    return FederatedClientRunner(
-        client_id="client_1",
-        dataset=dataset,
+    instance = FederatedClientRunner.__new__(
+        FederatedClientRunner
     )
+    instance.client = Mock()
+    instance.worker = Mock()
+    return instance
 
 
 @pytest.fixture
@@ -36,84 +25,42 @@ def assignment():
         local_epochs=1,
         batch_size=4,
         learning_rate=0.001,
-        model_state_base64=encode_model_payload(b"model"),
+        model_state_base64="bW9kZWw=",
     )
 
 
-def test_runner_registers_and_submits(
-    runner,
-    assignment,
-    monkeypatch,
-):
-    register = Mock(return_value={"status": "registered"})
-    wait = Mock(return_value=assignment)
-    submit = Mock(return_value={"status": "accepted"})
-
-    update = ClientUpdateMessage(
+@pytest.fixture
+def update():
+    return Mock(
         experiment_id=1,
-        client_id="client_1",
         round_number=1,
-        num_samples=8,
-        training_loss=0.2,
-        training_accuracy=0.8,
-        training_time_seconds=1.0,
-        model_state_base64=encode_model_payload(b"updated-model"),
+        client_id="client_1",
     )
 
-    execute = Mock(return_value=update)
 
-    monkeypatch.setattr(runner.client, "register", register)
-    monkeypatch.setattr(
-        runner.client,
-        "wait_for_assignment",
-        wait,
-    )
-    monkeypatch.setattr(
-        runner.client,
-        "submit_update",
-        submit,
-    )
-    monkeypatch.setattr(runner.worker, "execute", execute)
+def test_runner_registers_client(runner, assignment, update):
+    runner.client.wait_for_assignment.return_value = assignment
+    runner.worker.execute.return_value = update
+    runner.client.submit_update.return_value = {
+        "status": "accepted"
+    }
 
     result = runner.run(
         experiment_id=1,
         round_number=1,
+        register=True,
     )
 
-    register.assert_called_once()
-    execute.assert_called_once_with(assignment)
-    submit.assert_called_once_with(update)
-
+    runner.client.register.assert_called_once()
     assert result["status"] == "accepted"
 
 
-def test_runner_skips_registration(
-    runner,
-    assignment,
-    monkeypatch,
-):
-    register = Mock()
-    wait = Mock(return_value=assignment)
-    submit = Mock(return_value={"status": "accepted"})
-
-    update = Mock()
-
-    monkeypatch.setattr(runner.client, "register", register)
-    monkeypatch.setattr(
-        runner.client,
-        "wait_for_assignment",
-        wait,
-    )
-    monkeypatch.setattr(
-        runner.client,
-        "submit_update",
-        submit,
-    )
-    monkeypatch.setattr(
-        runner.worker,
-        "execute",
-        Mock(return_value=update),
-    )
+def test_runner_skips_registration(runner, assignment, update):
+    runner.client.wait_for_assignment.return_value = assignment
+    runner.worker.execute.return_value = update
+    runner.client.submit_update.return_value = {
+        "status": "accepted"
+    }
 
     result = runner.run(
         experiment_id=1,
@@ -121,53 +68,126 @@ def test_runner_skips_registration(
         register=False,
     )
 
-    register.assert_not_called()
+    runner.client.register.assert_not_called()
     assert result["status"] == "accepted"
 
 
-def test_runner_rejects_wrong_experiment(
-    runner,
-    assignment,
-    monkeypatch,
+def test_runner_waits_for_correct_assignment(
+    runner, assignment, update
 ):
+    runner.client.wait_for_assignment.return_value = assignment
+    runner.worker.execute.return_value = update
+
+    runner.run(
+        experiment_id=1,
+        round_number=1,
+        max_wait_seconds=30,
+    )
+
+    runner.client.wait_for_assignment.assert_called_once_with(
+        experiment_id=1,
+        round_number=1,
+        max_wait_seconds=30,
+    )
+
+
+def test_runner_executes_worker(runner, assignment, update):
+    runner.client.wait_for_assignment.return_value = assignment
+    runner.worker.execute.return_value = update
+
+    runner.run(
+        experiment_id=1,
+        round_number=1,
+    )
+
+    runner.worker.execute.assert_called_once_with(assignment)
+
+
+def test_runner_submits_update(runner, assignment, update):
+    runner.client.wait_for_assignment.return_value = assignment
+    runner.worker.execute.return_value = update
+
+    runner.run(
+        experiment_id=1,
+        round_number=1,
+    )
+
+    runner.client.submit_update.assert_called_once_with(update)
+
+
+def test_runner_rejects_wrong_experiment(runner, assignment):
     wrong = assignment.model_copy(
-        update={"experiment_id": 99}
+        update={"experiment_id": 999}
     )
+    runner.client.wait_for_assignment.return_value = wrong
 
-    monkeypatch.setattr(
-        runner.client,
-        "register",
-        Mock(),
+    with pytest.raises(
+        ValueError,
+        match="Experiment ID mismatch",
+    ):
+        runner.run(experiment_id=1, round_number=1)
+
+    runner.worker.execute.assert_not_called()
+
+
+def test_runner_rejects_wrong_round(runner, assignment):
+    wrong = assignment.model_copy(
+        update={"round_number": 999}
     )
-    monkeypatch.setattr(
-        runner.client,
-        "wait_for_assignment",
-        Mock(return_value=wrong),
-    )
+    runner.client.wait_for_assignment.return_value = wrong
 
-    with pytest.raises(ValueError, match="Experiment ID mismatch"):
-        runner.run(1, 1)
+    with pytest.raises(
+        ValueError,
+        match="Round number mismatch",
+    ):
+        runner.run(experiment_id=1, round_number=1)
+
+    runner.worker.execute.assert_not_called()
 
 
-def test_runner_rejects_wrong_round(
-    runner,
-    assignment,
-    monkeypatch,
+def test_runner_rejects_invalid_experiment_id(runner):
+    with pytest.raises(
+        ValueError,
+        match="Experiment ID must be positive",
+    ):
+        runner.run(experiment_id=0, round_number=1)
+
+
+def test_runner_rejects_invalid_round_number(runner):
+    with pytest.raises(
+        ValueError,
+        match="Round number must be positive",
+    ):
+        runner.run(experiment_id=1, round_number=0)
+
+
+def test_runner_rejects_update_experiment_mismatch(
+    runner, assignment, update
 ):
-    wrong = assignment.model_copy(
-        update={"round_number": 99}
-    )
+    update.experiment_id = 999
+    runner.client.wait_for_assignment.return_value = assignment
+    runner.worker.execute.return_value = update
 
-    monkeypatch.setattr(
-        runner.client,
-        "register",
-        Mock(),
-    )
-    monkeypatch.setattr(
-        runner.client,
-        "wait_for_assignment",
-        Mock(return_value=wrong),
-    )
+    with pytest.raises(
+        ValueError,
+        match="Update experiment ID mismatch",
+    ):
+        runner.run(experiment_id=1, round_number=1)
 
-    with pytest.raises(ValueError, match="Round number mismatch"):
-        runner.run(1, 1)
+    runner.client.submit_update.assert_not_called()
+
+
+def test_runner_rejects_update_round_mismatch(
+    runner, assignment, update
+):
+    update.round_number = 999
+    runner.client.wait_for_assignment.return_value = assignment
+    runner.worker.execute.return_value = update
+
+    with pytest.raises(
+        ValueError,
+        match="Update round number mismatch",
+    ):
+        runner.run(experiment_id=1, round_number=1)
+
+    runner.client.submit_update.assert_not_called()

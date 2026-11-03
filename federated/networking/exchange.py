@@ -1,4 +1,3 @@
-
 from threading import Lock
 
 from federated.networking.protocol import (
@@ -18,6 +17,9 @@ class TrainingExchange:
         client_id: str,
         assignment: TrainingAssignment,
     ):
+        if not client_id:
+            raise ValueError("Client ID is required")
+
         key = (
             assignment.experiment_id,
             assignment.round_number,
@@ -52,10 +54,18 @@ class TrainingExchange:
             if key not in self._assignments:
                 raise KeyError("No matching training assignment")
 
-            if key in self._updates:
-                raise ValueError("Update already submitted")
+            existing = self._updates.get(key)
+
+            if existing is not None:
+                if existing == update:
+                    return False
+
+                raise ValueError(
+                    "Conflicting update already submitted"
+                )
 
             self._updates[key] = update
+            return True
 
     def get_update(
         self,
