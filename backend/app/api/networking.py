@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, HTTPException, status
 
 from federated.networking.protocol import (
@@ -119,7 +118,7 @@ def submit_client_update(
         )
 
     try:
-        training_exchange.submit_update(update)
+        inserted = training_exchange.submit_update(update)
     except KeyError as exc:
         raise HTTPException(
             status_code=404,
@@ -132,7 +131,7 @@ def submit_client_update(
         ) from exc
 
     return {
-        "status": "accepted",
+        "status": "accepted" if inserted else "already_accepted",
         "client_id": update.client_id,
         "experiment_id": update.experiment_id,
         "round_number": update.round_number,

@@ -1,4 +1,3 @@
-
 import time
 
 import httpx
@@ -118,7 +117,7 @@ class FederatedHTTPClient:
             "POST",
             f"/api/network/clients/{self.client_id}/updates",
             json=update.model_dump(),
-            retry=False,
+            retry=True,
         )
 
     def wait_for_assignment(
