@@ -1,4 +1,5 @@
 
+import math
 import time
 from collections import OrderedDict
 
@@ -33,6 +34,7 @@ class RemoteFederatedCoordinator:
         registry: ClientRegistry,
         timeout_seconds: float = 120.0,
         poll_interval: float = 0.5,
+        min_participation_rate: float = 1.0,
     ):
         if experiment_id < 1:
             raise ValueError("Experiment ID must be positive")
@@ -40,12 +42,21 @@ class RemoteFederatedCoordinator:
         if timeout_seconds <= 0 or poll_interval <= 0:
             raise ValueError("Timeout and poll interval must be positive")
 
+        if (
+            not math.isfinite(min_participation_rate)
+            or not 0 < min_participation_rate <= 1
+        ):
+            raise ValueError(
+                "Minimum participation rate must be between 0 and 1"
+            )
+
         self.config = config
         self.experiment_id = experiment_id
         self.exchange = exchange
         self.registry = registry
         self.timeout_seconds = timeout_seconds
         self.poll_interval = poll_interval
+        self.min_participation_rate = min_participation_rate
 
         local = FederatedCoordinator(config)
 
@@ -55,12 +66,27 @@ class RemoteFederatedCoordinator:
 
         self.history = []
         self.client_history = {}
+        self.round_participation = {}
 
     def client_ids(self):
         return [
             f"client_{index + 1}"
             for index in sorted(self.partitions)
         ]
+
+    def required_client_count(self, total_clients=None):
+        if total_clients is None:
+            total_clients = len(self.client_ids())
+
+        if total_clients < 1:
+            raise ValueError("At least one client is required")
+
+        return max(
+            1,
+            math.ceil(
+                total_clients * self.min_participation_rate
+            ),
+        )
 
     def publish_round(self, round_number: int):
         clients = self.client_ids()
@@ -172,6 +198,7 @@ class RemoteFederatedCoordinator:
     def collect_updates(self, round_number, clients):
         deadline = time.monotonic() + self.timeout_seconds
         received = {}
+        required = self.required_client_count(len(clients))
 
         while len(received) < len(clients):
             for client_id in clients:
@@ -199,20 +226,38 @@ class RemoteFederatedCoordinator:
             remaining = deadline - time.monotonic()
 
             if remaining <= 0:
-                missing = [
-                    client_id
-                    for client_id in clients
-                    if client_id not in received
-                ]
-                raise TimeoutError(
-                    f"Missing client updates: {missing}"
-                )
+                break
 
             time.sleep(min(self.poll_interval, remaining))
+
+        missing = [
+            client_id
+            for client_id in clients
+            if client_id not in received
+        ]
+
+        self.round_participation[round_number] = {
+            "expected_clients": list(clients),
+            "received_clients": list(received),
+            "missing_clients": missing,
+            "required_clients": required,
+            "participation_rate": (
+                len(received) / len(clients)
+            ),
+        }
+
+        if len(received) < required:
+            raise TimeoutError(
+                f"Insufficient client updates: "
+                f"received {len(received)}, "
+                f"required {required}. "
+                f"Missing client updates: {missing}"
+            )
 
         return [
             received[client_id]
             for client_id in clients
+            if client_id in received
         ]
 
     def aggregate_round(self, round_number, updates, round_start):
@@ -313,6 +358,7 @@ class RemoteFederatedCoordinator:
 
         print(
             f"Round {round_number} completed | "
+            f"Clients: {len(updates)}/{len(clients)} | "
             f"Accuracy: {result.global_accuracy:.4f} | "
             f"Loss: {result.global_loss:.4f} | "
             f"Macro-F1: {result.global_macro_f1:.4f}"
@@ -323,6 +369,7 @@ class RemoteFederatedCoordinator:
     def run(self):
         self.history = []
         self.client_history = {}
+        self.round_participation = {}
 
         for round_number in range(
             1,

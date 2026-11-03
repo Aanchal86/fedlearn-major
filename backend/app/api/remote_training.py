@@ -35,6 +35,12 @@ class StartRemoteTrainingRequest(BaseModel):
     dirichlet_alpha: float = Field(default=0.5, gt=0)
     random_seed: int = 42
     timeout_seconds: float = Field(default=120.0, gt=0)
+    min_participation_rate: float = Field(
+        default=1.0,
+        gt=0,
+        le=1.0,
+        allow_inf_nan=False,
+    )
 
 
 def require_dev_mode():
@@ -55,11 +61,17 @@ def execute_job(experiment_id, coordinator):
                 result.model_dump()
                 for result in results
             ]
+            jobs[experiment_id]["participation"] = dict(
+                coordinator.round_participation
+            )
 
     except Exception as exc:
         with jobs_lock:
             jobs[experiment_id]["status"] = "failed"
             jobs[experiment_id]["error"] = str(exc)
+            jobs[experiment_id]["participation"] = dict(
+                coordinator.round_participation
+            )
 
 
 @router.post("/start")
@@ -94,6 +106,7 @@ def start_remote_training(payload: StartRemoteTrainingRequest):
                 exchange=training_exchange,
                 registry=client_registry,
                 timeout_seconds=payload.timeout_seconds,
+                min_participation_rate=payload.min_participation_rate,
             )
 
         except (ValueError, RuntimeError) as exc:
@@ -106,17 +119,30 @@ def start_remote_training(payload: StartRemoteTrainingRequest):
             "status": "running",
             "results": [],
             "error": None,
+            "participation": {},
+            "min_participation_rate": payload.min_participation_rate,
         }
 
-    executor.submit(
-        execute_job,
-        payload.experiment_id,
-        coordinator,
-    )
+    try:
+        executor.submit(
+            execute_job,
+            payload.experiment_id,
+            coordinator,
+        )
+    except RuntimeError as exc:
+        with jobs_lock:
+            jobs.pop(payload.experiment_id, None)
+
+        raise HTTPException(
+            status_code=503,
+            detail="Training executor unavailable",
+        ) from exc
 
     return {
         "status": "started",
         "experiment_id": payload.experiment_id,
+        "min_participation_rate": payload.min_participation_rate,
+        "required_clients": coordinator.required_client_count(),
     }
 
 

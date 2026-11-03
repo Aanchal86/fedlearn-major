@@ -64,5 +64,92 @@ class ClientRegistry:
                 key=lambda client: client.client_id,
             )
 
+    def is_active(
+        self,
+        client_id: str,
+        timeout_seconds: float = 60.0,
+    ) -> bool:
+        if timeout_seconds <= 0:
+            raise ValueError("Timeout must be positive")
+
+        client = self.get(client_id)
+
+        if client is None:
+            return False
+
+        now = datetime.now(timezone.utc)
+
+        elapsed = (
+            now - client.last_seen
+        ).total_seconds()
+
+        return elapsed <= timeout_seconds
+
+    def list_active_clients(
+        self,
+        timeout_seconds: float = 60.0,
+    ) -> list[RegisteredClient]:
+        if timeout_seconds <= 0:
+            raise ValueError("Timeout must be positive")
+
+        return [
+            client
+            for client in self.list_clients()
+            if self.is_active(
+                client.client_id,
+                timeout_seconds,
+            )
+        ]
+
+    def list_inactive_clients(
+        self,
+        timeout_seconds: float = 60.0,
+    ) -> list[RegisteredClient]:
+        if timeout_seconds <= 0:
+            raise ValueError("Timeout must be positive")
+
+        return [
+            client
+            for client in self.list_clients()
+            if not self.is_active(
+                client.client_id,
+                timeout_seconds,
+            )
+        ]
+
+    def health_summary(
+        self,
+        timeout_seconds: float = 60.0,
+    ) -> dict:
+        if timeout_seconds <= 0:
+            raise ValueError("Timeout must be positive")
+
+        clients = self.list_clients()
+
+        active = [
+            client.client_id
+            for client in clients
+            if self.is_active(
+                client.client_id,
+                timeout_seconds,
+            )
+        ]
+
+        inactive = [
+            client.client_id
+            for client in clients
+            if client.client_id not in active
+        ]
+
+        return {
+            "total_clients": len(clients),
+            "active_clients": len(active),
+            "inactive_clients": len(inactive),
+            "active_client_ids": active,
+            "inactive_client_ids": inactive,
+            "timeout_seconds": timeout_seconds,
+        }
+
 
 client_registry = ClientRegistry()
+
