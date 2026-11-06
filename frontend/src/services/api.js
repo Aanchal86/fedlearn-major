@@ -65,10 +65,20 @@ export const experimentApi = {
   create(name, config) {
     return apiRequest("/api/experiments", {
       method: "POST",
-      body: JSON.stringify({
-        name,
-        config,
-      }),
+      body: JSON.stringify({ name, config }),
     });
+  },
+
+  start(experimentId) {
+    return apiRequest(
+      `/api/experiments/${encodeURIComponent(experimentId)}/start`,
+      { method: "POST" }
+    );
+  },
+
+  getResults(experimentId) {
+    return apiRequest(
+      `/api/experiments/${encodeURIComponent(experimentId)}/results`
+    );
   },
 };

@@ -24,6 +24,8 @@ export default function ExperimentDashboard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [startingId, setStartingId] = useState(null);
+  const [selectedResults, setSelectedResults] = useState(null);
 
   useEffect(() => {
     async function loadData() {
@@ -82,6 +84,60 @@ export default function ExperimentDashboard() {
       setSubmitting(false);
     }
   }
+
+  async function handleStartTraining(experiment) {
+    setStartingId(experiment.id);
+    setError("");
+    setSuccess("");
+
+    try {
+      await experimentApi.start(experiment.id);
+
+      setExperiments((previous) =>
+        previous.map((item) =>
+          item.id === experiment.id
+            ? { ...item, status: "running" }
+            : item
+        )
+      );
+
+      setSuccess(
+        `Training started for experiment #${experiment.id}.`
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setStartingId(null);
+    }
+  }
+
+  async function handleViewResults(experimentId) {
+    setError("");
+
+    try {
+      const results = await experimentApi.getResults(experimentId);
+      setSelectedResults(results);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  useEffect(() => {
+    if (!experiments.some((experiment) => experiment.status === "running")) {
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const data = await experimentApi.getAll();
+        setExperiments(data.experiments);
+      } catch (err) {
+        console.error("Failed to refresh experiments:", err);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [experiments]);
 
   return (
     <div className="dashboard">
@@ -283,7 +339,7 @@ export default function ExperimentDashboard() {
 
             <p className="form-note">
               Creating an experiment saves its configuration.
-              Training will be enabled in a later phase.
+              For now, dashboard training supports IID with FedAvg only.
             </p>
           </form>
         </section>
@@ -337,12 +393,82 @@ export default function ExperimentDashboard() {
                   <small>
                     Experiment #{experiment.id}
                   </small>
+                  <div className="experiment-actions">
+                    {experiment.status === "created" && (
+                      <button
+                        type="button"
+                        className="primary-button"
+                        disabled={
+                          startingId === experiment.id ||
+                          experiment.configuration.partition_type !== "iid" ||
+                          experiment.configuration.aggregation_method !== "fedavg"
+                        }
+                        onClick={() => handleStartTraining(experiment)}
+                      >
+                        {startingId === experiment.id
+                          ? "Starting..."
+                          : "Start Training"}
+                      </button>
+                    )}
+
+                    {experiment.status === "running" && (
+                      <p>Training in progress...</p>
+                    )}
+
+                    {experiment.status === "completed" && (
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => handleViewResults(experiment.id)}
+                      >
+                        View Results
+                      </button>
+                    )}
+
+                    {experiment.status === "failed" && (
+                      <p>Training failed.</p>
+                    )}
+                  </div>
                 </article>
               ))}
             </div>
           )}
         </section>
       </div>
+
+      {selectedResults && (
+        <section className="panel" style={{ marginTop: "24px" }}>
+          <h2>Training Results</h2>
+          <p>Experiment: <strong>{selectedResults.name}</strong></p>
+          <p>Status: {selectedResults.status}</p>
+          <p>Completed Rounds: {selectedResults.total_rounds_completed}</p>
+
+          <div style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Round</th>
+                  <th>Accuracy</th>
+                  <th>Loss</th>
+                  <th>Macro F1</th>
+                  <th>Time (s)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedResults.history.map((round) => (
+                  <tr key={round.round_number}>
+                    <td>{round.round_number}</td>
+                    <td>{round.global_accuracy?.toFixed(4) ?? "—"}</td>
+                    <td>{round.global_loss?.toFixed(4) ?? "—"}</td>
+                    <td>{round.global_macro_f1?.toFixed(4) ?? "—"}</td>
+                    <td>{round.round_time_seconds?.toFixed(2) ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

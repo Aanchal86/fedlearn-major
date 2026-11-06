@@ -66,6 +66,49 @@ describe("Dataset API", () => {
 });
 
 describe("Experiment API", () => {
+
+  it("starts federated training", async () => {
+  const mockFetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      experiment_id: 1,
+      status: "running",
+    }),
+  });
+
+  vi.stubGlobal("fetch", mockFetch);
+
+  const result = await experimentApi.start(1);
+
+  expect(result.status).toBe("running");
+  expect(mockFetch).toHaveBeenCalledWith(
+    "http://localhost:8000/api/experiments/1/start",
+    expect.objectContaining({ method: "POST" })
+  );
+});
+
+it("fetches experiment training results", async () => {
+  const mockFetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      experiment_id: 1,
+      status: "completed",
+      total_rounds_completed: 3,
+      history: [],
+    }),
+  });
+
+  vi.stubGlobal("fetch", mockFetch);
+
+  const result = await experimentApi.getResults(1);
+
+  expect(result.total_rounds_completed).toBe(3);
+  expect(mockFetch).toHaveBeenCalledWith(
+    "http://localhost:8000/api/experiments/1/results",
+    expect.any(Object)
+  );
+});
+
   it("fetches saved experiments", async () => {
     const response = {
       experiments: [],
