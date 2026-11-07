@@ -109,7 +109,7 @@ class FederatedCoordinator:
         self.history = []
         self.client_history = {}
 
-    def run(self) -> list[RoundResult]:
+    def run(self, on_round_complete=None) -> list[RoundResult]:
         self.history = []
         self.client_history = {}
 
@@ -214,6 +214,9 @@ class FederatedCoordinator:
             )
 
             self.history.append(result)
+
+            if on_round_complete is not None:
+                on_round_complete(result, self.client_history[round_number])
 
             print(
                 f"\nRound {round_number} completed | "

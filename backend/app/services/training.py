@@ -51,9 +51,8 @@ def run_experiment_training(
             )
 
             coordinator = FederatedCoordinator(config)
-            history = coordinator.run()
 
-            for result in history:
+            def persist_round(result, client_metrics):
                 training_round = TrainingRound(
                     experiment_id=experiment_id,
                     round_number=result.round_number,
@@ -61,11 +60,6 @@ def run_experiment_training(
                     global_loss=result.global_loss,
                     global_macro_f1=result.global_macro_f1,
                     round_time_seconds=result.round_time_seconds,
-                )
-
-                client_metrics = coordinator.client_history.get(
-                    result.round_number,
-                    [],
                 )
 
                 for client in client_metrics:
@@ -86,7 +80,14 @@ def run_experiment_training(
                     )
 
                 db.add(training_round)
+                db.commit()
+                logger.info(
+                    "Experiment %s: round %s saved",
+                    experiment_id,
+                    result.round_number,
+                )
 
+            coordinator.run(on_round_complete=persist_round)
             experiment.status = "completed"
             db.commit()
 

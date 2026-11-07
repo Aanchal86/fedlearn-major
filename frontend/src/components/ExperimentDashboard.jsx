@@ -1,7 +1,38 @@
-
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { datasetApi, experimentApi } from "../services/api";
 import "./ExperimentDashboard.css";
+
+function MetricChart({ history, field, title, percent = false }) {
+  const points = history.filter((round) => Number.isFinite(round[field]));
+  if (points.length === 0) return <p className="chart-empty">Waiting for the first round...</p>;
+  const values = points.map((round) => round[field]);
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const range = maximum - minimum || 1;
+  const coords = points.map((round, index) => {
+    const x = 35 + (index * 510) / Math.max(1, points.length - 1);
+    const y = 165 - ((round[field] - minimum) / range) * 125;
+    return `${x},${y}`;
+  }).join(" ");
+  const format = (value) => percent ? `${(value * 100).toFixed(1)}%` : value.toFixed(3);
+  return (
+    <div className="metric-chart">
+      <h3>{title}</h3>
+      <svg viewBox="0 0 580 205" role="img" aria-label={`${title} across completed rounds`}>
+        <line x1="35" y1="165" x2="550" y2="165" stroke="#cbd5e1" />
+        <line x1="35" y1="35" x2="35" y2="165" stroke="#cbd5e1" />
+        <text x="2" y="40" fontSize="12" fill="#64748b">{format(maximum)}</text>
+        <text x="2" y="165" fontSize="12" fill="#64748b">{format(minimum)}</text>
+        <polyline points={coords} fill="none" stroke="#4f46e5" strokeWidth="3" strokeLinejoin="round" />
+        {points.map((round, index) => {
+          const [cx, cy] = coords.split(" ")[index].split(",").map(Number);
+          return <circle key={round.round_number} cx={cx} cy={cy} r="4" fill="#4f46e5"><title>{`Round ${round.round_number}: ${format(round[field])}`}</title></circle>;
+        })}
+        <text x="290" y="198" textAnchor="middle" fontSize="12" fill="#64748b">Training round</text>
+      </svg>
+    </div>
+  );
+}
 
 const initialForm = {
   name: "",
@@ -26,6 +57,9 @@ export default function ExperimentDashboard() {
   const [success, setSuccess] = useState("");
   const [startingId, setStartingId] = useState(null);
   const [selectedResults, setSelectedResults] = useState(null);
+  const [selectedExperimentId, setSelectedExperimentId] = useState(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const selectedIdRef = useRef(null);
 
   useEffect(() => {
     async function loadData() {
@@ -101,6 +135,9 @@ export default function ExperimentDashboard() {
         )
       );
 
+      selectedIdRef.current = experiment.id;
+      setSelectedExperimentId(experiment.id);
+      setSelectedResults(null);
       setSuccess(
         `Training started for experiment #${experiment.id}.`
       );
@@ -112,32 +149,52 @@ export default function ExperimentDashboard() {
   }
 
   async function handleViewResults(experimentId) {
+    selectedIdRef.current = experimentId;
+    setSelectedExperimentId(experimentId);
     setError("");
-
+    setResultsLoading(true);
     try {
       const results = await experimentApi.getResults(experimentId);
-      setSelectedResults(results);
+      if (selectedIdRef.current === experimentId) setSelectedResults(results);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setResultsLoading(false);
     }
   }
 
   useEffect(() => {
-    if (!experiments.some((experiment) => experiment.status === "running")) {
-      return;
-    }
-
-    const interval = setInterval(async () => {
+    const hasRunning = experiments.some((experiment) => experiment.status === "running");
+    if (!hasRunning) return;
+    let active = true;
+    let busy = false;
+    const refresh = async () => {
+      if (busy) return;
+      busy = true;
       try {
         const data = await experimentApi.getAll();
+        if (!active) return;
         setExperiments(data.experiments);
+        const id = selectedIdRef.current;
+        if (id !== null) {
+          const results = await experimentApi.getResults(id);
+          if (active && selectedIdRef.current === id) setSelectedResults(results);
+        }
       } catch (err) {
-        console.error("Failed to refresh experiments:", err);
+        if (active) console.error("Live training refresh failed:", err);
+      } finally {
+        busy = false;
       }
-    }, 5000);
+    };
+    const interval = setInterval(refresh, 5000);
+    return () => { active = false; clearInterval(interval); };
+  }, [experiments.some((experiment) => experiment.status === "running")]);
 
-    return () => clearInterval(interval);
-  }, [experiments]);
+  const selectedExperiment = experiments.find((experiment) => experiment.id === selectedExperimentId);
+  const totalRounds = selectedExperiment?.configuration?.num_rounds || 0;
+  const completedRounds = selectedResults?.history?.length || 0;
+  const progress = totalRounds ? Math.min(100, (completedRounds / totalRounds) * 100) : 0;
+  const latestRound = selectedResults?.history?.at(-1);
 
   return (
     <div className="dashboard">
@@ -380,7 +437,7 @@ export default function ExperimentDashboard() {
                   <p>
                     Clients:{" "}
                     {experiment.configuration.num_clients}
-                    {" · "}
+                    {" Â· "}
                     Rounds:{" "}
                     {experiment.configuration.num_rounds}
                   </p>
@@ -412,7 +469,9 @@ export default function ExperimentDashboard() {
                     )}
 
                     {experiment.status === "running" && (
-                      <p>Training in progress...</p>
+                      <button type="button" className="primary-button" onClick={() => handleViewResults(experiment.id)}>
+                         {selectedExperimentId === experiment.id ? "Monitoring Training" : "Monitor Live"}
+                       </button>
                     )}
 
                     {experiment.status === "completed" && (
@@ -436,37 +495,57 @@ export default function ExperimentDashboard() {
         </section>
       </div>
 
-      {selectedResults && (
-        <section className="panel" style={{ marginTop: "24px" }}>
-          <h2>Training Results</h2>
-          <p>Experiment: <strong>{selectedResults.name}</strong></p>
-          <p>Status: {selectedResults.status}</p>
-          <p>Completed Rounds: {selectedResults.total_rounds_completed}</p>
-
-          <div style={{ overflowX: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Round</th>
-                  <th>Accuracy</th>
-                  <th>Loss</th>
-                  <th>Macro F1</th>
-                  <th>Time (s)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedResults.history.map((round) => (
-                  <tr key={round.round_number}>
-                    <td>{round.round_number}</td>
-                    <td>{round.global_accuracy?.toFixed(4) ?? "—"}</td>
-                    <td>{round.global_loss?.toFixed(4) ?? "—"}</td>
-                    <td>{round.global_macro_f1?.toFixed(4) ?? "—"}</td>
-                    <td>{round.round_time_seconds?.toFixed(2) ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {selectedExperimentId !== null && (
+        <section className="panel live-monitor">
+          <div className="monitor-heading">
+            <div>
+              <h2>Live Training Monitor</h2>
+              <p className="panel-description">{selectedExperiment?.name || `Experiment #${selectedExperimentId}`}</p>
+            </div>
+            <span className="status-tag">{selectedExperiment?.status || selectedResults?.status || "loading"}</span>
           </div>
+          <div className="monitor-progress-label">
+            <strong>Round {completedRounds} of {totalRounds || "?"}</strong>
+            <strong>{Math.round(progress)}%</strong>
+          </div>
+          <div className="monitor-progress" role="progressbar" aria-label="Training progress" aria-valuenow={completedRounds} aria-valuemin={0} aria-valuemax={totalRounds || 1}>
+            <div style={{ width: `${progress}%` }} />
+          </div>
+          <div className="monitor-metrics">
+            <div><span>Latest Accuracy</span><strong>{latestRound ? `${(latestRound.global_accuracy * 100).toFixed(2)}%` : "—"}</strong></div>
+            <div><span>Latest Loss</span><strong>{latestRound?.global_loss?.toFixed(4) ?? "—"}</strong></div>
+            <div><span>Latest Macro F1</span><strong>{latestRound?.global_macro_f1?.toFixed(4) ?? "—"}</strong></div>
+          </div>
+          {resultsLoading && <p>Loading results...</p>}
+          {selectedExperiment?.status === "running" && <p className="form-note">Updating every 5 seconds as rounds finish.</p>}
+          {selectedExperiment?.status === "failed" && <p className="alert alert-error">Training failed. Previously saved rounds remain visible below.</p>}
+          {selectedResults && (
+            <>
+              <div className="monitor-charts">
+                <MetricChart history={selectedResults.history || []} field="global_accuracy" title="Global Accuracy" percent />
+                <MetricChart history={selectedResults.history || []} field="global_loss" title="Global Loss" />
+                <MetricChart history={selectedResults.history || []} field="global_macro_f1" title="Macro F1" />
+              </div>
+              <h3>Round-by-round Results</h3>
+              <div className="results-scroll">
+                <table className="results-table">
+                  <thead><tr><th>Round</th><th>Accuracy</th><th>Loss</th><th>Macro F1</th><th>Time (s)</th><th>Clients</th></tr></thead>
+                  <tbody>
+                    {(selectedResults.history || []).map((round) => (
+                      <tr key={round.round_number}>
+                        <td>{round.round_number}</td>
+                        <td>{round.global_accuracy?.toFixed(4) ?? "—"}</td>
+                        <td>{round.global_loss?.toFixed(4) ?? "—"}</td>
+                        <td>{round.global_macro_f1?.toFixed(4) ?? "—"}</td>
+                        <td>{round.round_time_seconds?.toFixed(2) ?? "—"}</td>
+                        <td>{round.clients?.length ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </section>
       )}
     </div>
