@@ -258,3 +258,11 @@
 .comparison-legend span { display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
 .comparison-legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 @media (max-width: 850px) { .comparison-form { grid-template-columns: 1fr; } }
+
+/* Day 24: results exports */
+.export-section { margin: 22px 0; padding: 18px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+.export-section h3 { margin: 0 0 8px; font-size: 16px; }
+.export-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 20px; }
+.export-button { background: #fff; color: #3730a3; border: 1px solid #a5b4fc; border-radius: 8px; padding: 10px 13px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.export-button:hover { background: #eef2ff; }
+.export-button:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
