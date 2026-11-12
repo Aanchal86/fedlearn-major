@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { datasetApi, experimentApi } from "../services/api";
 import "./ExperimentDashboard.css";
+import {
+  downloadText, safeFilename, experimentRoundsCsv, experimentClientsCsv,
+  experimentSummary, comparisonCsv, comparisonRoundsCsv,
+} from "../utils/reportExports";
 
 function MetricChart({ history, field, title, percent = false }) {
   const points = history.filter((round) => Number.isFinite(round[field]));
@@ -84,6 +88,11 @@ function ComparisonChart({ left, right, field, title, percent = false }) {
 }
 
 function ExperimentComparison({ left, right }) {
+  const comparisonName = `comparison_${left.experiment_id}_vs_${right.experiment_id}`;
+  const exportComparison = (kind) => {
+    const content = kind === "metrics" ? comparisonCsv(left, right) : comparisonRoundsCsv(left, right);
+    downloadText(`${comparisonName}_${kind}.csv`, content, "text/csv;charset=utf-8");
+  };
   const leftLast = left.history?.at(-1);
   const rightLast = right.history?.at(-1);
   const metrics = [
@@ -98,16 +107,21 @@ function ExperimentComparison({ left, right }) {
     ["Partition", "partition_type"], ["Dirichlet alpha", "dirichlet_alpha"],
   ];
   const fmt = (value, percent = false) => Number.isFinite(value)
-    ? (percent ? `${(value * 100).toFixed(2)}%` : value.toFixed(4)) : "—";
+    ? (percent ? `${(value * 100).toFixed(2)}%` : value.toFixed(4)) : "â€”";
   return (
     <div className="comparison-output">
       {left.configuration?.dataset !== right.configuration?.dataset && (
         <p className="alert alert-error">These experiments use different datasets. Their performance scores are not directly comparable.</p>
       )}
+      <div className="export-actions">
+        <button type="button" className="export-button" onClick={() => exportComparison("metrics")}>Download Comparison Metrics CSV</button>
+        <button type="button" className="export-button" onClick={() => exportComparison("rounds")}>Download Learning Curves CSV</button>
+        <button type="button" className="export-button" onClick={() => downloadText(`${comparisonName}.json`, JSON.stringify({ experiment_A: left, experiment_B: right }, null, 2), "application/json;charset=utf-8")}>Download Comparison JSON</button>
+      </div>
       <h3>Final metrics</h3>
       <div className="results-scroll">
         <table className="results-table">
-          <thead><tr><th>Metric</th><th>{left.name}</th><th>{right.name}</th><th>Difference (B − A)</th><th>Better</th></tr></thead>
+          <thead><tr><th>Metric</th><th>{left.name}</th><th>{right.name}</th><th>Difference (B âˆ’ A)</th><th>Better</th></tr></thead>
           <tbody>
             {metrics.map((metric) => {
               const a = leftLast?.[metric.field];
@@ -116,7 +130,7 @@ function ExperimentComparison({ left, right }) {
               const difference = valid ? b - a : null;
               const better = !valid ? "N/A" : Math.abs(difference) < 1e-10 ? "Tie" :
                 (difference > 0) === metric.higher ? "B" : "A";
-              return <tr key={metric.field}><td>{metric.label}</td><td>{fmt(a, metric.percent)}</td><td>{fmt(b, metric.percent)}</td><td>{valid ? `${difference > 0 ? "+" : ""}${fmt(difference, metric.percent)}` : "—"}</td><td>{better}</td></tr>;
+              return <tr key={metric.field}><td>{metric.label}</td><td>{fmt(a, metric.percent)}</td><td>{fmt(b, metric.percent)}</td><td>{valid ? `${difference > 0 ? "+" : ""}${fmt(difference, metric.percent)}` : "â€”"}</td><td>{better}</td></tr>;
             })}
           </tbody>
         </table>
@@ -133,7 +147,7 @@ function ExperimentComparison({ left, right }) {
         <table className="results-table">
           <thead><tr><th>Setting</th><th>{left.name}</th><th>{right.name}</th></tr></thead>
           <tbody>{configRows.map(([label, key]) => (
-            <tr key={key}><td>{label}</td><td>{String(left.configuration?.[key] ?? "—")}</td><td>{String(right.configuration?.[key] ?? "—")}</td></tr>
+            <tr key={key}><td>{label}</td><td>{String(left.configuration?.[key] ?? "â€”")}</td><td>{String(right.configuration?.[key] ?? "â€”")}</td></tr>
           ))}</tbody>
         </table>
       </div>
@@ -336,6 +350,15 @@ export default function ExperimentDashboard() {
   const completedRounds = selectedResults?.history?.length || 0;
   const progress = totalRounds ? Math.min(100, (completedRounds / totalRounds) * 100) : 0;
   const latestRound = selectedResults?.history?.at(-1);
+
+  function exportSelected(kind) {
+    if (!selectedResults) return;
+    const base = `experiment_${selectedResults.experiment_id}_${safeFilename(selectedResults.name)}`;
+    if (kind === "rounds") downloadText(`${base}_rounds.csv`, experimentRoundsCsv(selectedResults), "text/csv;charset=utf-8");
+    if (kind === "clients") downloadText(`${base}_clients.csv`, experimentClientsCsv(selectedResults), "text/csv;charset=utf-8");
+    if (kind === "json") downloadText(`${base}.json`, JSON.stringify(selectedResults, null, 2), "application/json;charset=utf-8");
+    if (kind === "summary") downloadText(`${base}_summary.txt`, experimentSummary(selectedResults));
+  }
 
   return (
     <div className="dashboard">
@@ -578,7 +601,7 @@ export default function ExperimentDashboard() {
                   <p>
                     Clients:{" "}
                     {experiment.configuration.num_clients}
-                    {" Â· "}
+                    {" Ã‚Â· "}
                     Rounds:{" "}
                     {experiment.configuration.num_rounds}
                   </p>
@@ -643,13 +666,13 @@ export default function ExperimentDashboard() {
           <label>Experiment A
             <select value={compareA} onChange={(event) => { setCompareA(event.target.value); setComparison(null); }} required>
               <option value="">Choose experiment A</option>
-              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} — {item.name}</option>)}
+              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} â€” {item.name}</option>)}
             </select>
           </label>
           <label>Experiment B
             <select value={compareB} onChange={(event) => { setCompareB(event.target.value); setComparison(null); }} required>
               <option value="">Choose experiment B</option>
-              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} — {item.name}</option>)}
+              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} â€” {item.name}</option>)}
             </select>
           </label>
           <button className="primary-button" type="submit" disabled={comparisonLoading || completedExperiments.length < 2}>
@@ -678,15 +701,25 @@ export default function ExperimentDashboard() {
             <div style={{ width: `${progress}%` }} />
           </div>
           <div className="monitor-metrics">
-            <div><span>Latest Accuracy</span><strong>{latestRound ? `${(latestRound.global_accuracy * 100).toFixed(2)}%` : "—"}</strong></div>
-            <div><span>Latest Loss</span><strong>{latestRound?.global_loss?.toFixed(4) ?? "—"}</strong></div>
-            <div><span>Latest Macro F1</span><strong>{latestRound?.global_macro_f1?.toFixed(4) ?? "—"}</strong></div>
+            <div><span>Latest Accuracy</span><strong>{latestRound ? `${(latestRound.global_accuracy * 100).toFixed(2)}%` : "â€”"}</strong></div>
+            <div><span>Latest Loss</span><strong>{latestRound?.global_loss?.toFixed(4) ?? "â€”"}</strong></div>
+            <div><span>Latest Macro F1</span><strong>{latestRound?.global_macro_f1?.toFixed(4) ?? "â€”"}</strong></div>
           </div>
           {resultsLoading && <p>Loading results...</p>}
           {selectedExperiment?.status === "running" && <p className="form-note">Updating every 5 seconds as rounds finish.</p>}
           {selectedExperiment?.status === "failed" && <p className="alert alert-error">Training failed. Previously saved rounds remain visible below.</p>}
           {selectedResults && (
             <>
+              <div className="export-section">
+                <h3>Export Experiment Results</h3>
+                <p className="form-note">Downloads use the latest saved metrics for this experiment.</p>
+                <div className="export-actions">
+                  <button type="button" className="export-button" onClick={() => exportSelected("rounds")}>Rounds CSV</button>
+                  <button type="button" className="export-button" onClick={() => exportSelected("clients")}>Client Metrics CSV</button>
+                  <button type="button" className="export-button" onClick={() => exportSelected("json")}>Full JSON</button>
+                  <button type="button" className="export-button" onClick={() => exportSelected("summary")}>Summary TXT</button>
+                </div>
+              </div>
               <div className="monitor-charts">
                 <MetricChart history={selectedResults.history || []} field="global_accuracy" title="Global Accuracy" percent />
                 <MetricChart history={selectedResults.history || []} field="global_loss" title="Global Loss" />
@@ -700,11 +733,11 @@ export default function ExperimentDashboard() {
                     {(selectedResults.history || []).map((round) => (
                       <tr key={round.round_number}>
                         <td>{round.round_number}</td>
-                        <td>{round.global_accuracy?.toFixed(4) ?? "—"}</td>
-                        <td>{round.global_loss?.toFixed(4) ?? "—"}</td>
-                        <td>{round.global_macro_f1?.toFixed(4) ?? "—"}</td>
-                        <td>{round.round_time_seconds?.toFixed(2) ?? "—"}</td>
-                        <td>{round.clients?.length ?? "—"}</td>
+                        <td>{round.global_accuracy?.toFixed(4) ?? "â€”"}</td>
+                        <td>{round.global_loss?.toFixed(4) ?? "â€”"}</td>
+                        <td>{round.global_macro_f1?.toFixed(4) ?? "â€”"}</td>
+                        <td>{round.round_time_seconds?.toFixed(2) ?? "â€”"}</td>
+                        <td>{round.clients?.length ?? "â€”"}</td>
                       </tr>
                     ))}
                   </tbody>
