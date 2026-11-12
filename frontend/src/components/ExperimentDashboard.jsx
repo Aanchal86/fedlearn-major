@@ -107,7 +107,7 @@ function ExperimentComparison({ left, right }) {
     ["Partition", "partition_type"], ["Dirichlet alpha", "dirichlet_alpha"],
   ];
   const fmt = (value, percent = false) => Number.isFinite(value)
-    ? (percent ? `${(value * 100).toFixed(2)}%` : value.toFixed(4)) : "â€”";
+    ? (percent ? `${(value * 100).toFixed(2)}%` : value.toFixed(4)) : "-";
   return (
     <div className="comparison-output">
       {left.configuration?.dataset !== right.configuration?.dataset && (
@@ -121,7 +121,7 @@ function ExperimentComparison({ left, right }) {
       <h3>Final metrics</h3>
       <div className="results-scroll">
         <table className="results-table">
-          <thead><tr><th>Metric</th><th>{left.name}</th><th>{right.name}</th><th>Difference (B âˆ’ A)</th><th>Better</th></tr></thead>
+          <thead><tr><th>Metric</th><th>{left.name}</th><th>{right.name}</th><th>Difference (B - A)</th><th>Better</th></tr></thead>
           <tbody>
             {metrics.map((metric) => {
               const a = leftLast?.[metric.field];
@@ -130,7 +130,7 @@ function ExperimentComparison({ left, right }) {
               const difference = valid ? b - a : null;
               const better = !valid ? "N/A" : Math.abs(difference) < 1e-10 ? "Tie" :
                 (difference > 0) === metric.higher ? "B" : "A";
-              return <tr key={metric.field}><td>{metric.label}</td><td>{fmt(a, metric.percent)}</td><td>{fmt(b, metric.percent)}</td><td>{valid ? `${difference > 0 ? "+" : ""}${fmt(difference, metric.percent)}` : "â€”"}</td><td>{better}</td></tr>;
+              return <tr key={metric.field}><td>{metric.label}</td><td>{fmt(a, metric.percent)}</td><td>{fmt(b, metric.percent)}</td><td>{valid ? `${difference > 0 ? "+" : ""}${fmt(difference, metric.percent)}` : "-"}</td><td>{better}</td></tr>;
             })}
           </tbody>
         </table>
@@ -147,7 +147,7 @@ function ExperimentComparison({ left, right }) {
         <table className="results-table">
           <thead><tr><th>Setting</th><th>{left.name}</th><th>{right.name}</th></tr></thead>
           <tbody>{configRows.map(([label, key]) => (
-            <tr key={key}><td>{label}</td><td>{String(left.configuration?.[key] ?? "â€”")}</td><td>{String(right.configuration?.[key] ?? "â€”")}</td></tr>
+            <tr key={key}><td>{label}</td><td>{String(left.configuration?.[key] ?? "-")}</td><td>{String(right.configuration?.[key] ?? "-")}</td></tr>
           ))}</tbody>
         </table>
       </div>
@@ -601,7 +601,7 @@ export default function ExperimentDashboard() {
                   <p>
                     Clients:{" "}
                     {experiment.configuration.num_clients}
-                    {" Ã‚Â· "}
+                    {" - "}
                     Rounds:{" "}
                     {experiment.configuration.num_rounds}
                   </p>
@@ -666,13 +666,13 @@ export default function ExperimentDashboard() {
           <label>Experiment A
             <select value={compareA} onChange={(event) => { setCompareA(event.target.value); setComparison(null); }} required>
               <option value="">Choose experiment A</option>
-              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} â€” {item.name}</option>)}
+              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} - {item.name}</option>)}
             </select>
           </label>
           <label>Experiment B
             <select value={compareB} onChange={(event) => { setCompareB(event.target.value); setComparison(null); }} required>
               <option value="">Choose experiment B</option>
-              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} â€” {item.name}</option>)}
+              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} - {item.name}</option>)}
             </select>
           </label>
           <button className="primary-button" type="submit" disabled={comparisonLoading || completedExperiments.length < 2}>
@@ -701,9 +701,9 @@ export default function ExperimentDashboard() {
             <div style={{ width: `${progress}%` }} />
           </div>
           <div className="monitor-metrics">
-            <div><span>Latest Accuracy</span><strong>{latestRound ? `${(latestRound.global_accuracy * 100).toFixed(2)}%` : "â€”"}</strong></div>
-            <div><span>Latest Loss</span><strong>{latestRound?.global_loss?.toFixed(4) ?? "â€”"}</strong></div>
-            <div><span>Latest Macro F1</span><strong>{latestRound?.global_macro_f1?.toFixed(4) ?? "â€”"}</strong></div>
+            <div><span>Latest Accuracy</span><strong>{latestRound ? `${(latestRound.global_accuracy * 100).toFixed(2)}%` : "-"}</strong></div>
+            <div><span>Latest Loss</span><strong>{latestRound?.global_loss?.toFixed(4) ?? "-"}</strong></div>
+            <div><span>Latest Macro F1</span><strong>{latestRound?.global_macro_f1?.toFixed(4) ?? "-"}</strong></div>
           </div>
           {resultsLoading && <p>Loading results...</p>}
           {selectedExperiment?.status === "running" && <p className="form-note">Updating every 5 seconds as rounds finish.</p>}
@@ -733,11 +733,11 @@ export default function ExperimentDashboard() {
                     {(selectedResults.history || []).map((round) => (
                       <tr key={round.round_number}>
                         <td>{round.round_number}</td>
-                        <td>{round.global_accuracy?.toFixed(4) ?? "â€”"}</td>
-                        <td>{round.global_loss?.toFixed(4) ?? "â€”"}</td>
-                        <td>{round.global_macro_f1?.toFixed(4) ?? "â€”"}</td>
-                        <td>{round.round_time_seconds?.toFixed(2) ?? "â€”"}</td>
-                        <td>{round.clients?.length ?? "â€”"}</td>
+                        <td>{round.global_accuracy?.toFixed(4) ?? "-"}</td>
+                        <td>{round.global_loss?.toFixed(4) ?? "-"}</td>
+                        <td>{round.global_macro_f1?.toFixed(4) ?? "-"}</td>
+                        <td>{round.round_time_seconds?.toFixed(2) ?? "-"}</td>
+                        <td>{round.clients?.length ?? "-"}</td>
                       </tr>
                     ))}
                   </tbody>
