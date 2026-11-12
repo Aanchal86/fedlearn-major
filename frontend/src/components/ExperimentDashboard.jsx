@@ -34,6 +34,113 @@ function MetricChart({ history, field, title, percent = false }) {
   );
 }
 
+
+function ComparisonChart({ left, right, field, title, percent = false }) {
+  const series = [
+    { name: left.name, color: "#4f46e5", history: left.history || [] },
+    { name: right.name, color: "#e11d48", history: right.history || [] },
+  ];
+  const all = series.flatMap((item) => item.history.filter((round) => Number.isFinite(round[field])));
+  if (!all.length) return <p>No round metrics available.</p>;
+  const values = all.map((round) => round[field]);
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const range = high - low || 1;
+  const maxRound = Math.max(1, ...all.map((round) => round.round_number));
+  const toX = (round) => 48 + ((round - 1) / Math.max(1, maxRound - 1)) * 480;
+  const toY = (value) => 160 - ((value - low) / range) * 115;
+  const format = (value) => percent ? `${(value * 100).toFixed(1)}%` : value.toFixed(3);
+  return (
+    <div className="metric-chart comparison-chart">
+      <h3>{title}</h3>
+      <svg viewBox="0 0 560 205" role="img" aria-label={`${title} comparison by training round`}>
+        <line x1="48" y1="160" x2="530" y2="160" stroke="#cbd5e1" />
+        <line x1="48" y1="38" x2="48" y2="160" stroke="#cbd5e1" />
+        <text x="3" y="42" fontSize="12" fill="#64748b">{format(high)}</text>
+        <text x="3" y="158" fontSize="12" fill="#64748b">{format(low)}</text>
+        <text x="48" y="181" fontSize="12" fill="#64748b">1</text>
+        <text x="530" y="181" textAnchor="end" fontSize="12" fill="#64748b">{maxRound}</text>
+        <text x="280" y="200" textAnchor="middle" fontSize="12" fill="#64748b">Training round</text>
+        {series.map((item) => {
+          const rounds = item.history.filter((round) => Number.isFinite(round[field]));
+          const points = rounds.map((round) => `${toX(round.round_number)},${toY(round[field])}`).join(" ");
+          return (
+            <g key={item.name + item.color}>
+              <polyline points={points} fill="none" stroke={item.color} strokeWidth="3" strokeLinejoin="round" />
+              {rounds.map((round) => (
+                <circle key={round.round_number} cx={toX(round.round_number)} cy={toY(round[field])} r="3.5" fill={item.color}>
+                  <title>{`${item.name}, round ${round.round_number}: ${format(round[field])}`}</title>
+                </circle>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="comparison-legend">
+        {series.map((item) => <span key={item.color}><i style={{ background: item.color }} />{item.name}</span>)}
+      </div>
+    </div>
+  );
+}
+
+function ExperimentComparison({ left, right }) {
+  const leftLast = left.history?.at(-1);
+  const rightLast = right.history?.at(-1);
+  const metrics = [
+    { label: "Final accuracy", field: "global_accuracy", higher: true, percent: true },
+    { label: "Final loss", field: "global_loss", higher: false, percent: false },
+    { label: "Final macro F1", field: "global_macro_f1", higher: true, percent: true },
+  ];
+  const configRows = [
+    ["Dataset", "dataset"], ["Clients", "num_clients"], ["Rounds", "num_rounds"],
+    ["Local epochs", "local_epochs"], ["Batch size", "batch_size"],
+    ["Learning rate", "learning_rate"], ["Aggregation", "aggregation_method"],
+    ["Partition", "partition_type"], ["Dirichlet alpha", "dirichlet_alpha"],
+  ];
+  const fmt = (value, percent = false) => Number.isFinite(value)
+    ? (percent ? `${(value * 100).toFixed(2)}%` : value.toFixed(4)) : "—";
+  return (
+    <div className="comparison-output">
+      {left.configuration?.dataset !== right.configuration?.dataset && (
+        <p className="alert alert-error">These experiments use different datasets. Their performance scores are not directly comparable.</p>
+      )}
+      <h3>Final metrics</h3>
+      <div className="results-scroll">
+        <table className="results-table">
+          <thead><tr><th>Metric</th><th>{left.name}</th><th>{right.name}</th><th>Difference (B − A)</th><th>Better</th></tr></thead>
+          <tbody>
+            {metrics.map((metric) => {
+              const a = leftLast?.[metric.field];
+              const b = rightLast?.[metric.field];
+              const valid = Number.isFinite(a) && Number.isFinite(b);
+              const difference = valid ? b - a : null;
+              const better = !valid ? "N/A" : Math.abs(difference) < 1e-10 ? "Tie" :
+                (difference > 0) === metric.higher ? "B" : "A";
+              return <tr key={metric.field}><td>{metric.label}</td><td>{fmt(a, metric.percent)}</td><td>{fmt(b, metric.percent)}</td><td>{valid ? `${difference > 0 ? "+" : ""}${fmt(difference, metric.percent)}` : "—"}</td><td>{better}</td></tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="form-note">A = first experiment, B = second experiment. Accuracy and F1 differences are percentage points; lower loss is better. Final metrics use each experiment's last saved round.</p>
+      <h3>Learning curves</h3>
+      <div className="monitor-charts">
+        <ComparisonChart left={left} right={right} field="global_accuracy" title="Accuracy" percent />
+        <ComparisonChart left={left} right={right} field="global_loss" title="Loss" />
+        <ComparisonChart left={left} right={right} field="global_macro_f1" title="Macro F1" percent />
+      </div>
+      <h3>Experiment configuration</h3>
+      <div className="results-scroll">
+        <table className="results-table">
+          <thead><tr><th>Setting</th><th>{left.name}</th><th>{right.name}</th></tr></thead>
+          <tbody>{configRows.map(([label, key]) => (
+            <tr key={key}><td>{label}</td><td>{String(left.configuration?.[key] ?? "—")}</td><td>{String(right.configuration?.[key] ?? "—")}</td></tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 const initialForm = {
   name: "",
   dataset: "fashion_mnist",
@@ -60,6 +167,12 @@ export default function ExperimentDashboard() {
   const [selectedExperimentId, setSelectedExperimentId] = useState(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const selectedIdRef = useRef(null);
+  const [compareA, setCompareA] = useState("");
+  const [compareB, setCompareB] = useState("");
+  const [comparison, setComparison] = useState(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState("");
+
 
   useEffect(() => {
     async function loadData() {
@@ -163,8 +276,9 @@ export default function ExperimentDashboard() {
     }
   }
 
+  const hasRunning = experiments.some((experiment) => experiment.status === "running");
+
   useEffect(() => {
-    const hasRunning = experiments.some((experiment) => experiment.status === "running");
     if (!hasRunning) return;
     let active = true;
     let busy = false;
@@ -188,7 +302,34 @@ export default function ExperimentDashboard() {
     };
     const interval = setInterval(refresh, 5000);
     return () => { active = false; clearInterval(interval); };
-  }, [experiments.some((experiment) => experiment.status === "running")]);
+  }, [hasRunning]);
+
+  async function handleCompare(event) {
+    event.preventDefault();
+    setComparisonError("");
+    setComparison(null);
+    if (!compareA || !compareB || compareA === compareB) {
+      setComparisonError("Select two different completed experiments.");
+      return;
+    }
+    setComparisonLoading(true);
+    try {
+      const [left, right] = await Promise.all([
+        experimentApi.getResults(Number(compareA)),
+        experimentApi.getResults(Number(compareB)),
+      ]);
+      if (left.status !== "completed" || right.status !== "completed") {
+        throw new Error("Both experiments must be completed before comparison.");
+      }
+      setComparison({ left, right });
+    } catch (err) {
+      setComparisonError(err.message);
+    } finally {
+      setComparisonLoading(false);
+    }
+  }
+
+  const completedExperiments = experiments.filter((item) => item.status === "completed");
 
   const selectedExperiment = experiments.find((experiment) => experiment.id === selectedExperimentId);
   const totalRounds = selectedExperiment?.configuration?.num_rounds || 0;
@@ -494,6 +635,31 @@ export default function ExperimentDashboard() {
           )}
         </section>
       </div>
+
+      <section className="panel comparison-panel">
+        <h2>Experiment Comparison</h2>
+        <p className="panel-description">Select two completed experiments to compare final performance, learning curves, and configurations.</p>
+        <form className="comparison-form" onSubmit={handleCompare}>
+          <label>Experiment A
+            <select value={compareA} onChange={(event) => { setCompareA(event.target.value); setComparison(null); }} required>
+              <option value="">Choose experiment A</option>
+              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} — {item.name}</option>)}
+            </select>
+          </label>
+          <label>Experiment B
+            <select value={compareB} onChange={(event) => { setCompareB(event.target.value); setComparison(null); }} required>
+              <option value="">Choose experiment B</option>
+              {completedExperiments.map((item) => <option key={item.id} value={item.id}>#{item.id} — {item.name}</option>)}
+            </select>
+          </label>
+          <button className="primary-button" type="submit" disabled={comparisonLoading || completedExperiments.length < 2}>
+            {comparisonLoading ? "Comparing..." : "Compare Experiments"}
+          </button>
+        </form>
+        {completedExperiments.length < 2 && <p className="form-note">Complete at least two experiments to enable comparison.</p>}
+        {comparisonError && <p className="alert alert-error" role="alert">{comparisonError}</p>}
+        {comparison && <ExperimentComparison left={comparison.left} right={comparison.right} />}
+      </section>
 
       {selectedExperimentId !== null && (
         <section className="panel live-monitor">
