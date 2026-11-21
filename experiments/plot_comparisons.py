@@ -109,7 +109,7 @@ def plot_metric(df, dataset, metric, ylabel, filename):
 def main():
     df = load_results()
 
-    for dataset in ["fashion_mnist", "pneumonia_mnist"]:
+    for dataset in sorted(df["dataset"].unique()):
         plot_metric(
             df, dataset,
             "final_accuracy",

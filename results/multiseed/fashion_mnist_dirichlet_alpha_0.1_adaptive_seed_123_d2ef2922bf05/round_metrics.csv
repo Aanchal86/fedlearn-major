@@ -1,0 +1,11 @@
+experiment_id,dataset,partition_type,dirichlet_alpha,aggregation_method,seed,round,accuracy,macro_f1,loss,round_time_seconds
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,1,0.56,0.43945864310465643,1.2837525180180867,13.199575042002834
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,2,0.6055,0.5215751705373163,1.0056928386688233,13.015644166967832
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,3,0.6343333333333333,0.549201087346364,0.9121618402798971,13.02079770801356
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,4,0.6861666666666667,0.620155555420186,0.7953054548899333,13.23780970898224
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,5,0.7028333333333333,0.6415786005095414,0.7511289156277975,13.047087875020225
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,6,0.7033333333333334,0.6447535742855877,0.7007078569730123,13.169504875026178
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,7,0.713,0.6535316294538193,0.6658843833605449,13.106516707979608
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,8,0.7035,0.6378076264996232,0.6996754941940307,13.064547499991022
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,9,0.727,0.6718884141432684,0.6742040589650472,13.435860082972795
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_123_d2ef2922bf05,fashion_mnist,dirichlet,0.1,adaptive,123,10,0.738,0.6940746892069564,0.6152318542798361,13.073445625021122

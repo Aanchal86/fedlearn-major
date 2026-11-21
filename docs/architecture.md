@@ -3,199 +3,237 @@
 
 ## 1. Project Overview
 
-FedLearn is a federated learning research platform
-developed using PyTorch, FastAPI, React, and Docker.
+FedLearn is a federated learning research platform developed using PyTorch, FastAPI, React, SQLAlchemy, and Docker Compose.
 
-Its objective is to support collaborative model
-training without centrally collecting raw client
-training datasets.
+Its objective is to enable collaborative model training without centrally collecting raw client training datasets.
 
-The platform supports simulated federated learning
-and will later support independent network-connected
-clients.
+The platform supports simulated federated learning and network-connected client execution.
 
-## 2. Main Components
+## 2. High-Level Architecture
 
-### React Dashboard
+```mermaid
+flowchart TD
+    A[React Dashboard] --> B[FastAPI Backend]
+    B --> C[Experiment Management]
+    C --> D[Federated Coordinator]
+    D --> E[Client 1]
+    D --> F[Client 2]
+    D --> G[Client N]
+    E --> H[Aggregation Engine]
+    F --> H
+    G --> H
+    H --> I[Global Model]
+    I --> D
+    D --> J[Evaluation and Metrics]
+    J --> K[SQLAlchemy Database]
+    K --> B
+```
 
-The dashboard allows users to:
+The coordinator orchestrates training, aggregation, and evaluation. In network-connected execution, client processes communicate with the coordinator over the network.
 
-- Configure federated learning experiments
-- Start and monitor training
-- View global accuracy, loss, and macro F1
-- Compare FedAvg and adaptive aggregation
-- Review experiment history
+## 3. Main Components
 
-### FastAPI Backend
+### 3.1 React Dashboard
 
-The backend is responsible for:
+The React and Vite frontend provides an interface for experiment configuration, execution, and monitoring.
 
-- Receiving experiment configurations
-- Validating API requests
-- Managing experiment lifecycle
-- Providing experiment results
-- Communicating with the database
+The dashboard displays experiment information and evaluation metrics, including accuracy, loss, and Macro F1.
 
-### Federated Coordinator
+Available experiment actions depend on the backend configuration and supported execution modes.
+
+### 3.2 FastAPI Backend
+
+The backend handles:
+
+- Experiment configuration and validation
+- Experiment lifecycle management
+- API endpoints
+- Database operations
+- Experiment status and result retrieval
+
+### 3.3 Federated Coordinator
 
 The coordinator manages:
 
 - Global model initialization
-- Client selection
-- Model distribution
-- Local training execution
+- Client selection and participation
+- Global model distribution
 - Client update collection
-- Global model aggregation
-- Round evaluation
+- Aggregation
+- Global model evaluation
+- Communication-round orchestration
+- Round-level metrics
 
-### Federated Clients
+The implementation includes local and remote coordinator modules.
+
+### 3.4 Federated Clients
 
 Each client:
 
-- Maintains its own local training dataset
-- Receives the current global model
-- Trains using PyTorch
-- Returns model parameters and sample count
-- Does not upload raw training examples
+1. Receives the current global model.
+2. Trains the model using its local dataset.
+3. Computes local training metrics.
+4. Returns updated model parameters and metadata.
 
-### Aggregation Engine
+Raw training examples are not included in the normal model-update exchange.
 
-FedLearn will implement:
+### 3.5 Aggregation Engine
 
-1. Federated Averaging (FedAvg)
-2. Reliability-aware adaptive aggregation
+FedLearn implements two aggregation methods.
 
-FedAvg uses sample-count-weighted aggregation.
+#### Federated Averaging (FedAvg)
 
-Adaptive aggregation will incorporate client
-reliability information using validation metrics.
+FedAvg computes aggregation weights based on local sample counts:
 
-The adaptive formula will be finalized on Day 12.
+\[
+w_k=\frac{n_k}{\sum_j n_j}
+\]
 
-## 3. Training Workflow
+#### Adaptive Aggregation
 
-1. User creates an experiment in React.
-2. FastAPI validates the configuration.
-3. Coordinator initializes the global model.
-4. Participating clients receive model parameters.
-5. Each client trains on local data.
-6. Clients return updated model parameters.
-7. The aggregation engine computes global weights.
-8. The global model is evaluated.
-9. Round metrics are saved.
-10. The next training round begins.
+FedLearn's adaptive aggregation computes:
 
-## 4. Development Stages
+\[
+s_k=n_k\max(a_k,\epsilon)
+\]
 
-### Stage 1: Simulated Federated Learning
+\[
+w_k=\frac{s_k}{\sum_j s_j}
+\]
 
-Days 6-15
+where:
 
-- Five simulated clients
-- Single-machine execution
-- IID and non-IID partitions
-- FedAvg and adaptive aggregation
-- Reproducible experiments
+- \(n_k\) is the client's training sample count.
+- \(a_k\) is the client's local training accuracy.
+- \(\epsilon=10^{-6}\) prevents zero-valued accuracy factors.
 
-### Stage 2: Network-Connected Clients
+Floating-point model parameters are aggregated using the normalized weights:
 
-Days 16-20
+\[
+\theta_{\mathrm{global}}=\sum_k w_k\theta_k
+\]
 
-- Independent client processes
-- HTTP-based model exchange
-- Client registration
-- Round orchestration
-- Timeouts and dropout handling
-- Two-laptop demonstration
+The implementation performs floating-point accumulation in float64 on CPU before converting the result to the reference parameter dtype.
 
-## 5. Technology Stack
+For compatible non-floating-point state entries, the implementation copies the reference client's value rather than computing a weighted average.
 
-- Python 3.11
-- PyTorch
-- FastAPI
-- React + Vite
-- SQLAlchemy
-- Docker Compose
-- SQLite for initial development
+Adaptive aggregation uses local training accuracy, not validation accuracy or a measured network-reliability score.
 
-## 6. Research Evaluation
+## 4. Federated Training Workflow
 
-Planned evaluation metrics:
+1. An experiment configuration is prepared.
+2. The coordinator initializes the global model.
+3. Participating clients receive model parameters.
+4. Clients perform local training.
+5. Clients return model updates and training metadata.
+6. The coordinator validates and aggregates the updates.
+7. The updated global model is evaluated.
+8. Round-level metrics are recorded.
+9. The process continues for the configured communication rounds.
 
-- Accuracy
+## 5. Execution Modes
+
+### 5.1 Simulated Federated Learning
+
+The simulated execution mode supports multiple logical clients on a single machine.
+
+It is used for reproducible experiments with IID and non-IID data partitions.
+
+### 5.2 Network-Connected Federated Learning
+
+The distributed implementation supports independent client processes and network-based model exchange.
+
+The remote coordinator includes round orchestration and client-update collection.
+
+Fault-tolerance and recovery mechanisms were implemented during the distributed-training development phase.
+
+A complete multi-machine deployment should be validated separately before claiming successful production-scale distributed execution.
+
+## 6. Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Machine Learning | PyTorch |
+| Programming Language | Python 3.11 |
+| Backend | FastAPI |
+| Frontend | React, Vite |
+| Database Layer | SQLAlchemy |
+| Local Database | SQLite |
+| Containerization | Docker Compose |
+| Evaluation | Pandas, Matplotlib |
+| Testing | Pytest, Vitest |
+
+## 7. Experimental Evaluation
+
+The primary completed evaluation uses Fashion-MNIST.
+
+### Experimental Configuration
+
+- Five clients
+- Ten communication rounds
+- One local epoch
+- FedAvg and Adaptive aggregation
+- IID and Dirichlet non-IID partitions
+- Dirichlet alpha values of 0.5 and 0.1
+- Random seeds 42, 123, and 2026
+
+This produces 18 multi-seed experiments.
+
+### Evaluation Metrics
+
+- Validation accuracy
 - Macro F1
-- Training loss
-- Convergence across rounds
-- Client participation
-- Training time
-- Communication cost
+- Validation loss
+- Convergence across communication rounds
+- Mean and standard deviation across random seeds
+- Paired differences between aggregation methods
 
-Experiments will compare:
+### Research Findings
 
-- Centralized training
-- Standard FedAvg
-- Adaptive aggregation
-- IID and non-IID data distributions
+Both methods achieved approximately 91% mean accuracy under IID partitioning.
 
-## 7. Privacy and Limitations
+Stronger non-IID partitioning reduced mean accuracy and increased variation across seeds.
 
-Raw client training datasets remain local.
+Adaptive aggregation did not consistently outperform FedAvg in the tested configurations.
 
-Federated learning does not automatically guarantee
-privacy, because model updates can leak information.
-
-Differential privacy and secure aggregation are
-outside the initial project scope.
-
-The test dataset must not influence adaptive
-aggregation weights.
-
+Detailed results are available in `docs/final-evaluation-report.md`.
 
 ## 8. Database Architecture
 
-FedLearn initially uses SQLite with SQLAlchemy ORM.
+FedLearn uses SQLAlchemy for experiment-related persistence.
 
-### Experiments Table
+The documented database model includes experiment records, training-round records, and client-participation records.
 
-Stores:
-- Experiment identifier
-- Experiment name
-- Training configuration
-- Experiment status
-- Creation timestamp
+### Experiments
 
-### Training Rounds Table
+Stores experiment identifiers, configuration, status, and creation information.
 
-Stores:
-- Experiment reference
-- Communication round number
-- Global accuracy
-- Global loss
-- Global macro F1
-- Round execution time
+### Training Rounds
 
-### Client Participation Table
+Stores round-level evaluation metrics and execution information.
 
-Stores:
-- Training round reference
-- Client identifier
-- Local training sample count
-- Aggregation weight
-- Local training loss
-- Local training accuracy
+### Client Participation
 
-### Relationships
+Stores participating client information, sample counts, aggregation weights, and available local training metrics.
 
-One experiment can contain multiple training rounds.
+The exact persisted fields and relationships should be verified against the current SQLAlchemy models before treating this section as a complete database schema reference.
 
-Each training round can contain multiple
-client participation records.
+## 9. Privacy and Security Considerations
 
-Foreign keys maintain relationships between
-the tables.
+FedLearn avoids centrally collecting raw client training datasets during the normal federated training workflow.
 
-### Future Integration
+However, model updates may still expose information about local data.
 
-The database will be connected to experiment
-management APIs and the federated coordinator
-during later development stages.
+The current implementation does not establish formal differential privacy or secure aggregation guarantees.
+
+Training accuracy is used to compute adaptive aggregation weights. This should not be interpreted as a privacy guarantee or a validated measure of client trustworthiness.
+
+## 10. Limitations and Future Scope
+
+- Limited experimental client count and communication rounds
+- Three random seeds in the completed multi-seed evaluation
+- Fashion-MNIST as the primary evaluated dataset
+- No formal differential privacy guarantee
+- No demonstrated production-scale deployment
+- Further evaluation needed for heterogeneous devices and networks
+- Additional robustness and aggregation studies would strengthen the research conclusions

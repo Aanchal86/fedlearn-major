@@ -1,0 +1,4 @@
+dataset,distribution,n_seeds,mean_accuracy_difference_pp,std_accuracy_difference_pp,mean_macro_f1_difference
+fashion_mnist,Dirichlet alpha=0.1,3,-0.0888888888888939,0.9189869623868663,-0.0016507769992238168
+fashion_mnist,Dirichlet alpha=0.5,3,-0.0055555555555586444,0.24962935487401097,2.0229953966888203e-05
+fashion_mnist,IID,3,0.06111111111111178,0.091792842454769,0.000647449735239373
