@@ -1,0 +1,7 @@
+experiment_id,dataset,partition_type,dirichlet_alpha,aggregation_method,seed,num_clients,num_rounds,local_epochs,final_accuracy,final_macro_f1,final_loss,total_round_time_seconds
+fashion_mnist_iid_fedavg_seed_42_16c692b83c2b,fashion_mnist,iid,,fedavg,42,5,10,1,0.907,0.907281435177947,0.2542116630474726,138.76509879296646
+fashion_mnist_iid_adaptive_seed_42_f881c7f39a9b,fashion_mnist,iid,,adaptive,42,5,10,1,0.9076666666666666,0.9080345148217598,0.2543087363243103,143.85460662510013
+fashion_mnist_dirichlet_alpha_0.5_fedavg_seed_42_11e6ff75be89,fashion_mnist,dirichlet,0.5,fedavg,42,5,10,1,0.8803333333333333,0.8828408996678542,0.31970384216308595,147.3217852070229
+fashion_mnist_dirichlet_alpha_0.5_adaptive_seed_42_0a42606f80b8,fashion_mnist,dirichlet,0.5,adaptive,42,5,10,1,0.8823333333333333,0.8850235481710402,0.30876558025677997,144.18935870903078
+fashion_mnist_dirichlet_alpha_0.1_fedavg_seed_42_bf8a1c323473,fashion_mnist,dirichlet,0.1,fedavg,42,5,10,1,0.6841666666666667,0.6089565657779884,1.7104895566304525,145.94821154302917
+fashion_mnist_dirichlet_alpha_0.1_adaptive_seed_42_b43cfa7cf467,fashion_mnist,dirichlet,0.1,adaptive,42,5,10,1,0.6886666666666666,0.613420388919485,1.6873273989359538,154.33035508403555
